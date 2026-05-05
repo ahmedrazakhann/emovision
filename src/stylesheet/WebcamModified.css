@@ -1,0 +1,41 @@
+body {
+    margin: 0;
+}
+
+.canvas {
+    position: fixed;
+    height: 100%;
+    width: 100%;
+}
+
+.info {
+    text-align: center;
+    font-size: 200%;
+    position: fixed;
+    z-index: 2;
+    color: white;
+    background-color: black;
+    border-bottom-right-radius: 20px;
+    padding: 2%;
+    opacity: 0.7;
+}
+
+.info button{
+    border-radius: 40px;
+    font-size: 110%;
+}
+
+.cameraSelector{
+    width:100%;
+    font-size: 80%;
+}
+
+@media only screen and (max-device-width: 640px) {
+}
+
+@media only screen and (max-device-width: 768px) {
+    .info{
+        font-size: 120%;
+    }
+
+}
