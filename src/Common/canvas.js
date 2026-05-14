@@ -1,3 +1,4 @@
+import * as tf from "@tensorflow/tfjs";
 import { predict } from "./tensorflowPredictions";
 import {
   EMOTION_PANEL_BG_COLOR,
@@ -10,54 +11,44 @@ const _setRectStyle = (context) => {
   context.strokeStyle = "red";
 };
 
-const _drawRect = (context, boundingBox) => {
-  // rectangle draw all around the face
+const _getRectDim = (boundingBox, canvasWidth, canvasHeight) => {
+  const width = boundingBox.width * canvasWidth;
+  const height = boundingBox.height * canvasHeight;
+  const x = boundingBox.xCenter * canvasWidth;
+  const y = boundingBox.yCenter * canvasHeight - SIZE_EMOTION_PANEL;
+  return { x, y, width, height };
+};
+
+const _drawRect = (context, dims) => {
   context.beginPath();
   _setRectStyle(context);
-  const { x, y, width } = _getRectDim(boundingBox, context);
-  const height = boundingBox.height * context.canvas.height;
-  context.rect(x, y, width, height);
+  context.rect(dims.x, dims.y + SIZE_EMOTION_PANEL, dims.width, dims.height);
   context.stroke();
 };
 
-const _getFace = (context, boundingBox) => {
-  const { x, y, width } = _getRectDim(boundingBox, context);
-  const height = boundingBox.height * context.canvas.height;
-  return context.getImageData(x, y, width, height);
-};
 const _setFillStyle = (context, color) => (context.fillStyle = color);
 
-const _getRectDim = (boundingBox, context) => {
-  const x = boundingBox.xCenter * context.canvas.width;
-  const y = boundingBox.yCenter * context.canvas.height - SIZE_EMOTION_PANEL;
-  const width = boundingBox.width * context.canvas.width;
-  return { x, y, width };
-};
-
-const _drawPanel = (context, boundingBox) => {
-  const { x, y, width } = _getRectDim(boundingBox, context);
-  context.fillRect(x, y, width, SIZE_EMOTION_PANEL);
+const _drawPanel = (context, dims) => {
+  context.fillRect(dims.x, dims.y, dims.width, SIZE_EMOTION_PANEL);
 };
 
 const _setFont = (context) => (context.font = SIZE_EMOTION_PANEL + "px serif");
 
-const _drawText = (context, text, boundingBox) => {
-  const { x, y, width } = _getRectDim(boundingBox, context);
-  context.stroke();
-  context.fillText(text, x, y + SIZE_EMOTION_PANEL, width);
+const _drawText = (context, text, dims) => {
+  context.fillText(text, dims.x, dims.y + SIZE_EMOTION_PANEL, dims.width);
 };
 
-const _drawEmotionPanel = (context, boundingBox, prediction) => {
+const _drawEmotionPanel = (context, dims, prediction) => {
   _setFillStyle(context, EMOTION_PANEL_BG_COLOR);
-  _drawPanel(context, boundingBox);
+  _drawPanel(context, dims);
   _setFont(context);
   _setFillStyle(context, EMOTION_PANEL_COLOR);
-  _drawText(context, prediction, boundingBox);
+  _drawText(context, prediction, dims);
 };
 
 const _isBoundingBoxPositive = (boundingBox) =>
-  boundingBox.xCenter > 0 &&
-  boundingBox.yCenter > 0 &&
+  boundingBox.xCenter >= 0 &&
+  boundingBox.yCenter >= 0 &&
   boundingBox.width > 0 &&
   boundingBox.height > 0;
 
@@ -67,28 +58,41 @@ const _clearCanvas = (context) =>
 const _drawImage = (video, context) =>
   context.drawImage(video, 0, 0, context.canvas.width, context.canvas.height);
 
-const _drawPrediction = (context, bb, emotionRecognizer, state) =>
+const _drawPrediction = (context, bb, dims, emotionRecognizer, state, video) =>
   _drawEmotionPanel(
     context,
-    bb,
-    predict(emotionRecognizer, state, _getFace(context, bb))
+    dims,
+    predict(emotionRecognizer, state, video, bb)
   );
 
 const drawOnCanvas = (
   state,
   context,
   video,
-  boundingBox,
+  boundingBoxes,
   emotionRecognizer
 ) => {
+  const { width: canvasWidth, height: canvasHeight } = context.canvas;
   _clearCanvas(context);
   _drawImage(video, context);
-  for (let bb of boundingBox) {
-    // recuperation of all values into boundingBox (coordinate of face)
-    _drawRect(context, bb);
-    // recuperation of face only if boundingBox has valuable coordinates
-    if (_isBoundingBoxPositive(bb) && state.isModelSet) {
-      _drawPrediction(context, bb, emotionRecognizer, state);
+
+  if (boundingBoxes.length > 0 && state.isModelSet) {
+    tf.tidy(() => {
+      const videoTensor = tf.browser.fromPixels(video, 3);
+      for (const bb of boundingBoxes) {
+        if (_isBoundingBoxPositive(bb)) {
+          const dims = _getRectDim(bb, canvasWidth, canvasHeight);
+          _drawRect(context, dims);
+          _drawPrediction(context, bb, dims, emotionRecognizer, state, videoTensor);
+        }
+      }
+    });
+  } else {
+    for (const bb of boundingBoxes) {
+      if (_isBoundingBoxPositive(bb)) {
+        const dims = _getRectDim(bb, canvasWidth, canvasHeight);
+        _drawRect(context, dims);
+      }
     }
   }
 };

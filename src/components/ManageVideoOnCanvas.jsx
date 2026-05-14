@@ -25,22 +25,44 @@ const ManageVideoOnCanvas = () => {
     facingMode: "user",
   });
 
+  const boundingBoxRef = useRef(boundingBox);
+  const stateRef = useRef(state);
+
   useEffect(() => {
-    const context = canvasRef.current.getContext("2d");
+    boundingBoxRef.current = boundingBox;
+  }, [boundingBox]);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
     let animationFrameId;
+
     const render = () => {
-      drawOnCanvas(
-        state,
-        context,
-        webcamRef.current.video,
-        boundingBox,
-        state.model
-      );
+      if (webcamRef.current && webcamRef.current.video && webcamRef.current.video.readyState === 4) {
+        drawOnCanvas(
+          stateRef.current,
+          context,
+          webcamRef.current.video,
+          boundingBoxRef.current,
+          stateRef.current.model
+        );
+      }
       animationFrameId = window.requestAnimationFrame(render);
     };
+
     render();
-    return window.cancelAnimationFrame(animationFrameId);
-  }, [canvasRef, webcamRef, boundingBox, state]);
+    return () => {
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [canvasRef, webcamRef]);
 
   useEffect(() => {
     if (!state.isModelSet) {
